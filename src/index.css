@@ -1,0 +1,50 @@
+@import "tailwindcss";
+
+/* Enable manual class-based dark mode in Tailwind v4 */
+@variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-maroon-600: #7A1B29;
+  --color-maroon-700: #5C141F;
+  --color-maroon-50: #F9F2F3;
+  --color-maroon-500: #A82538; /* Slightly lighter for dark mode contrast */
+  --color-gold-500: #D4AF37;
+  --color-gold-600: #B5952F;
+}
+
+/* Base resets */
+body {
+  @apply transition-colors duration-200;
+}
+
+/* --------------------------------------
+   Custom Scrollbar 
+--------------------------------------- */
+::-webkit-scrollbar {
+  width: 6px;  /* Reduced from 10px for a thinner, sleeker look */
+  height: 6px; 
+}
+
+/* Light Mode Scrollbar */
+::-webkit-scrollbar-track {
+  background: #F1F5F9; /* slate-100 */
+}
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1; /* slate-300 */
+  border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8; /* slate-400 */
+}
+
+/* Dark Mode Scrollbar (True Black / Neutral) */
+.dark ::-webkit-scrollbar-track {
+  background: #000000; /* pure black */
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #262626; /* neutral-800 */
+  border-radius: 6px;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #404040; /* neutral-700 */
+}

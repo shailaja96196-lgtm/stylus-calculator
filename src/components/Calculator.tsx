@@ -17,7 +17,17 @@ export default function Calculator() {
   const [rateError, setRateError] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  // States for custom searchable dropdown
+  const [isCountryDropdownOpen, setIsCountryDropdownOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
   const selectedCountry = COUNTRIES.find(c => c.code === selectedCountryCode) || COUNTRIES[0];
+  
+  // Filter countries based on search
+  const filteredCountries = COUNTRIES.filter(c => 
+    c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    c.currency.toLowerCase().includes(searchQuery.toLowerCase())
+  );
   
   useEffect(() => {
     if (source !== 'international') return;
@@ -106,6 +116,8 @@ export default function Calculator() {
     setSelectedCountryCode(COUNTRIES[0].code);
     setManualExchangeRate('');
     setRateError(false);
+    setIsCountryDropdownOpen(false);
+    setSearchQuery('');
   };
 
   const handleCopy = () => {
@@ -124,9 +136,10 @@ export default function Calculator() {
   };
 
   return (
-    <div className="w-full bg-white dark:bg-[#0a0a0a] rounded-2xl shadow-sm border border-slate-200 dark:border-neutral-800 overflow-hidden flex flex-col lg:flex-row transition-colors">
+    
+    <div className="w-full bg-white dark:bg-[#0a0a0a] rounded-2xl shadow-sm border border-slate-200 dark:border-neutral-800 flex flex-col lg:flex-row transition-colors">
       
-  
+      {/* LEFT SIDE: HEADER CONTROLS & INPUTS */}
       <div className="flex-1 p-6 sm:p-8 lg:p-10 xl:p-12 border-b lg:border-b-0 lg:border-r border-slate-100 dark:border-neutral-800 transition-colors">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 lg:mb-10 gap-4">
           <h2 className="text-sm font-semibold tracking-wider text-slate-500 dark:text-neutral-400 uppercase">Procurement Source</h2>
@@ -138,7 +151,7 @@ export default function Calculator() {
 
         <div className="flex p-1 bg-slate-100 dark:bg-black/60 rounded-lg mb-8 lg:mb-10 transition-colors">
           <button
-            onClick={() => setSource('india')}
+            onClick={() => { setSource('india'); setIsCountryDropdownOpen(false); }}
             className={`flex-1 py-3 text-sm font-medium rounded-md transition-all ${
               source === 'india' ? 'bg-white dark:bg-neutral-800 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-neutral-400 hover:text-slate-700 dark:hover:text-neutral-200'
             }`}
@@ -157,24 +170,81 @@ export default function Calculator() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 lg:gap-8">
           
-      
+          {/* Intl Country Selector */}
           {source === 'international' && (
-            <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-6 lg:gap-8 p-5 lg:p-6 bg-slate-50 dark:bg-black/40 rounded-xl border border-slate-100 dark:border-neutral-800/60 mb-2 transition-colors">
-              <div>
+            <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-6 lg:gap-8 p-5 lg:p-6 bg-slate-50 dark:bg-black/40 rounded-xl border border-slate-100 dark:border-neutral-800/60 mb-2 transition-colors relative">
+              
+              {/* Custom Searchable Themed Dropdown */}
+              <div className="relative">
                 <label className="block text-sm font-medium text-slate-700 dark:text-neutral-300 mb-2">Country</label>
-                <select
-                  value={selectedCountryCode}
-                  onChange={(e) => {
-                    setSelectedCountryCode(e.target.value);
-                    setManualExchangeRate('');
-                    setRateError(false);
-                  }}
-                  className="w-full px-4 py-3 bg-white dark:bg-black border border-slate-300 dark:border-neutral-800 rounded-lg focus:ring-2 focus:ring-maroon-600 focus:border-maroon-600 outline-none text-slate-900 dark:text-white transition-colors"
+                
+                <button
+                  type="button"
+                  onClick={() => setIsCountryDropdownOpen(!isCountryDropdownOpen)}
+                  className={`w-full flex items-center justify-between px-4 py-3 bg-white dark:bg-black border rounded-lg focus:outline-none transition-colors text-left ${isCountryDropdownOpen ? 'border-maroon-600 ring-2 ring-maroon-600/20' : 'border-slate-300 dark:border-neutral-800 hover:border-slate-400 dark:hover:border-neutral-600'}`}
                 >
-                  {COUNTRIES.map(c => (
-                    <option key={c.code} value={c.code}>{c.name} ({c.currency})</option>
-                  ))}
-                </select>
+                  <span className="text-slate-900 dark:text-white text-base">
+                    {selectedCountry.name} <span className="text-slate-500 dark:text-neutral-500">({selectedCountry.currency})</span>
+                  </span>
+                  <svg className={`w-4 h-4 text-slate-500 transition-transform duration-200 ${isCountryDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                </button>
+
+                {/* Searchable Dropdown Menu */}
+                {isCountryDropdownOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => {setIsCountryDropdownOpen(false); setSearchQuery('');}} />
+                    
+                    <div className="absolute z-50 w-full mt-2 bg-white dark:bg-[#111] border border-slate-200 dark:border-neutral-800 rounded-lg shadow-xl flex flex-col max-h-[300px] animate-in fade-in slide-in-from-top-2 duration-150">
+                      
+                      {/* Search Bar */}
+                      <div className="p-2 border-b border-slate-100 dark:border-neutral-800">
+                        <div className="relative">
+                          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                          <input
+                            type="text"
+                            placeholder="Search country..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-black border border-slate-200 dark:border-neutral-800 rounded-md text-sm outline-none focus:border-maroon-600 dark:focus:border-maroon-500 text-slate-900 dark:text-white placeholder:text-slate-400"
+                            autoFocus
+                          />
+                        </div>
+                      </div>
+
+                      {/* Dropdown Options */}
+                      <div className="overflow-y-auto py-1">
+                        {filteredCountries.length > 0 ? (
+                          filteredCountries.map(c => (
+                            <button
+                              key={c.code}
+                              onClick={() => {
+                                setSelectedCountryCode(c.code);
+                                setManualExchangeRate('');
+                                setRateError(false);
+                                setIsCountryDropdownOpen(false);
+                                setSearchQuery('');
+                              }}
+                              className={`w-full text-left px-4 py-2.5 text-sm transition-colors flex items-center justify-between group ${
+                                selectedCountryCode === c.code 
+                                  ? 'bg-maroon-50 dark:bg-maroon-500/10 text-maroon-700 dark:text-maroon-400 font-medium' 
+                                  : 'text-slate-700 dark:text-neutral-300 hover:bg-slate-100 dark:hover:bg-neutral-800/80'
+                              }`}
+                            >
+                              <span>{c.name} <span className={`transition-colors ${selectedCountryCode === c.code ? 'text-maroon-600/70 dark:text-maroon-400/70' : 'text-slate-400 dark:text-neutral-500 group-hover:text-slate-500 dark:group-hover:text-neutral-400'}`}>({c.currency})</span></span>
+                              
+                              {selectedCountryCode === c.code && (
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                              )}
+                            </button>
+                          ))
+                        ) : (
+                          <div className="px-4 py-3 text-sm text-slate-500 text-center">No countries found</div>
+                        )}
+                      </div>
+
+                    </div>
+                  </>
+                )}
               </div>
 
               <div>
@@ -208,7 +278,7 @@ export default function Calculator() {
             </div>
           )}
 
-
+          {/* Base Price */}
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-neutral-300 mb-2">
               Base Unit Price
@@ -236,7 +306,7 @@ export default function Calculator() {
             </div>
           </div>
 
-  
+          {/* Quantity */}
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-neutral-300 mb-2">
               Required Quantity
@@ -254,7 +324,8 @@ export default function Calculator() {
         </div>
       </div>
 
-      <div className="w-full lg:w-[40%] xl:w-[450px] shrink-0 p-6 sm:p-8 lg:p-10 xl:p-12 bg-slate-50 dark:bg-[#0f0f0f] flex flex-col transition-colors">
+      {/* RIGHT SIDE: OUTPUT SECTION (Added specific rounded corners to keep it clean) */}
+      <div className="w-full lg:w-[40%] xl:w-[450px] shrink-0 p-6 sm:p-8 lg:p-10 xl:p-12 bg-slate-50 dark:bg-[#0f0f0f] flex flex-col transition-colors rounded-b-2xl lg:rounded-bl-none lg:rounded-r-2xl">
         <div className="flex items-center justify-between mb-8 lg:mb-10">
           <h2 className="text-sm font-semibold tracking-wider text-slate-500 dark:text-neutral-400 uppercase">Calculation</h2>
           <button 

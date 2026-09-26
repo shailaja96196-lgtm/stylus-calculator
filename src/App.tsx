@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import Calculator from './components/Calculator';
 import Footer from './components/Footer';
+import ExampleBreakdown from './components/ExampleBreakdown';
 
 function App() {
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -75,6 +76,7 @@ function App() {
       {/* CALCULATOR APP */}
       <main className="w-full max-w-7xl">
         <Calculator />
+        <ExampleBreakdown />
       </main>
 
       {/* FOOTER */}

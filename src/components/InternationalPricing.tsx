@@ -1,11 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { COUNTRIES } from '../data/countries';
 
-const BCD_RATE = 0.10;
-const SWG_RATE = 0.10;
-const DAYS_YEAR = 365; 
-const CHA_CHARGES = 5000;
-const ADMIN_CHARGES = 5000;
+const BCD_RATE = 0.11; // Updated to 11%
+const SWG_RATE = 0.10; // 10% of BCD
+const DAYS_IN_YEAR = 365;
 
 interface Props {
   onSwitch: (source: 'india' | 'international') => void;
@@ -15,11 +13,15 @@ export default function InternationalPricing({ onSwitch }: Props) {
   const [basePrice, setBasePrice] = useState<string>('');
   const [quantity, setQuantity] = useState<string>('1');
   const [freight, setFreight] = useState<string>('');
-  const [insuranceRate, setInsuranceRate] = useState<string>('0.5');
+  
+  // New Inputs as requested
+  const [chaCharges, setChaCharges] = useState<string>('');
+  const [adminCharges, setAdminCharges] = useState<string>('');
+  
+  const [insuranceRate, setInsuranceRate] = useState<string>('0.5'); 
   const [gstEnabled, setGstEnabled] = useState<boolean>(true);
   const [gstRate, setGstRate] = useState<string>('18');
   
-  // CHANGED: Default margin is now 25%
   const [marginRate, setMarginRate] = useState<string>('25');
   const [interestRate, setInterestRate] = useState<string>('14');
   const [interestDays, setInterestDays] = useState<string>('45');
@@ -38,8 +40,8 @@ export default function InternationalPricing({ onSwitch }: Props) {
   const selectedCountry = COUNTRIES.find(c => c.code === selectedCountryCode) || COUNTRIES[0];
   const filteredCountries = COUNTRIES.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()) || c.currency.toLowerCase().includes(searchQuery.toLowerCase()));
   
-  // Validation Check
-  const isPristine = basePrice === '' && freight === '' && quantity === '1' && insuranceRate === '0.5' && gstRate === '18' && marginRate === '25' && interestRate === '14' && interestDays === '45';
+  // Validation Check (CHA and Admin are optional so they are not in missingFields)
+  const isPristine = basePrice === '' && freight === '' && quantity === '1' && insuranceRate === '0.5' && marginRate === '25' && interestRate === '14' && interestDays === '45';
   
   const missingFields = useMemo(() => {
     const missing = [];
@@ -47,7 +49,7 @@ export default function InternationalPricing({ onSwitch }: Props) {
     if (quantity === '') missing.push('Quantity');
     if (freight === '') missing.push('Freight Charges');
     if (insuranceRate === '') missing.push('Insurance Rate');
-    if (gstEnabled && gstRate === '') missing.push('Customs GST');
+    if (gstEnabled && gstRate === '') missing.push('GST Rate');
     if (marginRate === '') missing.push('Final Margin');
     if (interestRate === '') missing.push('Interest Rate');
     if (interestDays === '') missing.push('Interest Days');
@@ -76,7 +78,6 @@ export default function InternationalPricing({ onSwitch }: Props) {
   }, [selectedCountry.currency, exchangeRates, manualExchangeRate]);
 
   const calculation = useMemo(() => {
-    // ENFORCING NO FIELDS MISSED
     if (missingFields.length > 0) return null;
 
     const numBasePrice = parseFloat(basePrice);
@@ -86,45 +87,54 @@ export default function InternationalPricing({ onSwitch }: Props) {
     if (isNaN(numBasePrice) || isNaN(numQuantity) || !activeExchangeRate || numBasePrice <= 0 || numQuantity <= 0) return null;
 
     const numFreight = parseFloat(freight) || 0;
+    const numCha = parseFloat(chaCharges) || 0;
+    const numAdmin = parseFloat(adminCharges) || 0;
     const numInsuranceRate = parseFloat(insuranceRate) || 0;
     const numGstRate = gstEnabled ? (parseFloat(gstRate) || 0) : 0;
     const numMarginRate = parseFloat(marginRate) || 0;
     const numInterestRate = parseFloat(interestRate) || 0;
     const numInterestDays = parseFloat(interestDays) || 0;
 
+    // STEP 1: Base Costs
     const rmPrice = numBasePrice * activeExchangeRate * numQuantity;
-    const insuranceAmt = (rmPrice + numFreight) * (numInsuranceRate / 100);
-    const cifValue = rmPrice + numFreight + insuranceAmt;
+    const baseCosts = rmPrice + numFreight;
 
-    const bcd = cifValue * BCD_RATE;
+    // STEP 2: Customs & Overheads
+    const bcd = baseCosts * BCD_RATE;
     const swg = bcd * SWG_RATE;
-    const totalCustoms = bcd + swg;
-    const gstAmount = totalCustoms * (numGstRate / 100); 
+    const gstAmount = (baseCosts + bcd + swg) * (numGstRate / 100);
+    const customsAndOverheads = bcd + swg + gstAmount + numCha + numAdmin;
 
-    const overheads = CHA_CHARGES + ADMIN_CHARGES;
-    const landedCost = cifValue + totalCustoms + overheads;
+    // STEP 3: Insurance Cost (Calculated on RM + Freight + Customs&Overheads)
+    const insuranceAmt = (baseCosts + customsAndOverheads) * (numInsuranceRate / 100);
 
-    const capitalBlocked = landedCost + gstAmount; 
-    const consolidatedInterest = capitalBlocked * (numInterestRate / 100) * (numInterestDays / DAYS_YEAR);
+    // Accumulated Subtotal
+    const subtotal = baseCosts + customsAndOverheads + insuranceAmt;
 
-    const totalCostWithInterest = landedCost + consolidatedInterest;
-    const marginAmount = totalCostWithInterest * (numMarginRate / 100);
-    const finalPricing = totalCostWithInterest + marginAmount;
+    // STEP 4: Interest Part
+    const interestAmt = subtotal * (numInterestRate / 100) * (numInterestDays / DAYS_IN_YEAR);
+
+    // STEP 5: Landing Price
+    const landingPrice = subtotal + interestAmt;
+
+    // STEP 6: Final Price
+    const marginAmount = landingPrice * (numMarginRate / 100);
+    const finalPricing = landingPrice + marginAmount;
     const sellingPriceUnit = finalPricing / numQuantity;
 
     return {
-      activeExchangeRate, rmPrice, freightAmt: numFreight, insuranceAmt, cifValue,
-      bcd, swg, totalCustoms, gstAmount, overheads, landedCost,
-      capitalBlocked, consolidatedInterest, totalCostWithInterest,
+      activeExchangeRate, rmPrice, freightAmt: numFreight, baseCosts,
+      bcd, swg, gstAmount, chaAmt: numCha, adminAmt: numAdmin, customsAndOverheads, 
+      insuranceAmt, subtotal, interestAmt, landingPrice,
       marginAmount, finalPricing, sellingPriceUnit, quantity: numQuantity
     };
-  }, [basePrice, quantity, freight, insuranceRate, gstEnabled, gstRate, marginRate, interestRate, interestDays, selectedCountry.currency, exchangeRates, manualExchangeRate, missingFields]);
+  }, [basePrice, quantity, freight, chaCharges, adminCharges, insuranceRate, gstEnabled, gstRate, marginRate, interestRate, interestDays, selectedCountry.currency, exchangeRates, manualExchangeRate, missingFields]);
 
   const formatINR = (val: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(val);
 
   const handleCopy = () => {
     if (!calculation) return;
-    const textToCopy = `INTERNATIONAL QUOTATION\n-----------------------\nCountry: ${selectedCountry.name}\nExchange Rate: ₹${calculation.activeExchangeRate}\n\nTOTAL COST: ${formatINR(calculation.totalCostWithInterest)}\nMargin: ${formatINR(calculation.marginAmount)}\nTOTAL SELLING PRICE: ${formatINR(calculation.finalPricing)}\nSelling Price / Unit: ${formatINR(calculation.sellingPriceUnit)}\nQuantity: ${calculation.quantity}`;
+    const textToCopy = `INTERNATIONAL QUOTATION\n-----------------------\nCountry: ${selectedCountry.name}\nExchange Rate: ₹${calculation.activeExchangeRate}\n\nLANDING PRICE: ${formatINR(calculation.landingPrice)}\nMargin: ${formatINR(calculation.marginAmount)}\nTOTAL SELLING PRICE: ${formatINR(calculation.finalPricing)}\nSelling Price / Unit: ${formatINR(calculation.sellingPriceUnit)}\nQuantity: ${calculation.quantity}`;
     navigator.clipboard.writeText(textToCopy);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -208,12 +218,17 @@ export default function InternationalPricing({ onSwitch }: Props) {
 
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-neutral-300 mb-2">Freight Charges (INR)</label>
-            <input type="number" min="0" value={freight} onChange={(e) => setFreight(e.target.value)} placeholder="0.00 (Type 0 if none)" className="w-full px-4 py-3 bg-white dark:bg-black border border-slate-300 dark:border-neutral-800 rounded-lg focus:ring-2 focus:ring-maroon-600 outline-none dark:text-white" />
+            <input type="number" min="0" value={freight} onChange={(e) => setFreight(e.target.value)} placeholder="0.00" className="w-full px-4 py-3 bg-white dark:bg-black border border-slate-300 dark:border-neutral-800 rounded-lg focus:ring-2 focus:ring-maroon-600 outline-none dark:text-white" />
           </div>
 
+          {/* NEW: CHA and Admin Inputs */}
           <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-neutral-300 mb-2">Insurance (%)</label>
-            <input type="number" min="0" step="0.1" value={insuranceRate} onChange={(e) => setInsuranceRate(e.target.value)} className="w-full px-4 py-3 bg-white dark:bg-black border border-slate-300 dark:border-neutral-800 rounded-lg focus:ring-2 focus:ring-maroon-600 outline-none dark:text-white" />
+            <label className="block text-sm font-medium text-slate-700 dark:text-neutral-300 mb-2">CHA Charges (INR)</label>
+            <input type="number" min="0" value={chaCharges} onChange={(e) => setChaCharges(e.target.value)} placeholder="0.00 (Optional)" className="w-full px-4 py-3 bg-white dark:bg-black border border-slate-300 dark:border-neutral-800 rounded-lg focus:ring-2 focus:ring-maroon-600 outline-none dark:text-white" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-neutral-300 mb-2">Admin Charges (INR)</label>
+            <input type="number" min="0" value={adminCharges} onChange={(e) => setAdminCharges(e.target.value)} placeholder="0.00 (Optional)" className="w-full px-4 py-3 bg-white dark:bg-black border border-slate-300 dark:border-neutral-800 rounded-lg focus:ring-2 focus:ring-maroon-600 outline-none dark:text-white" />
           </div>
 
           <div>
@@ -230,6 +245,10 @@ export default function InternationalPricing({ onSwitch }: Props) {
             <input type="number" min="0" value={gstRate} disabled={!gstEnabled} onChange={(e) => setGstRate(e.target.value)} className={`w-full px-4 py-3 bg-white dark:bg-black border border-slate-300 dark:border-neutral-800 rounded-lg outline-none dark:text-white ${!gstEnabled ? 'opacity-50 cursor-not-allowed' : 'focus:ring-2 focus:ring-maroon-600'}`} />
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-neutral-300 mb-2">Insurance (%)</label>
+            <input type="number" min="0" step="0.1" value={insuranceRate} onChange={(e) => setInsuranceRate(e.target.value)} className="w-full px-4 py-3 bg-white dark:bg-black border border-slate-300 dark:border-neutral-800 rounded-lg focus:ring-2 focus:ring-maroon-600 outline-none dark:text-white" />
+          </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-neutral-300 mb-2">Final Margin (%)</label>
             <input type="number" min="0" step="0.1" value={marginRate} onChange={(e) => setMarginRate(e.target.value)} className="w-full px-4 py-3 bg-white dark:bg-black border border-slate-300 dark:border-neutral-800 rounded-lg focus:ring-2 focus:ring-maroon-600 outline-none dark:text-white" />
@@ -264,29 +283,32 @@ export default function InternationalPricing({ onSwitch }: Props) {
               <h3 className="text-xs font-bold text-maroon-600/80 dark:text-maroon-500/80 uppercase tracking-wider mb-2 border-b border-maroon-100 dark:border-maroon-900/30 pb-1">1. Base Costs</h3>
               <ReceiptRow label="RM Price (INR)" value={calculation.rmPrice} />
               <ReceiptRow label="Freight" value={calculation.freightAmt} />
-              <ReceiptRow label={`Insurance (${insuranceRate}%)`} value={calculation.insuranceAmt} />
-              <ReceiptRow label="Total Base (CIF)" value={calculation.cifValue} isSub />
+              <ReceiptRow label="Total Base Costs" value={calculation.baseCosts} isSub />
             </div>
 
             <div className="mb-6">
               <h3 className="text-xs font-bold text-maroon-600/80 dark:text-maroon-500/80 uppercase tracking-wider mb-2 border-b border-maroon-100 dark:border-maroon-900/30 pb-1">2. Customs & Overheads</h3>
-              <ReceiptRow label="BCD (10%)" value={calculation.bcd} />
+              <ReceiptRow label="BCD (11%)" value={calculation.bcd} />
               <ReceiptRow label="SWG (10% of BCD)" value={calculation.swg} />
-              {gstEnabled && <ReceiptRow label={`Claimable GST (${gstRate}%)`} value={calculation.gstAmount} indent />}
-              <ReceiptRow label="CHA + Admin Charges" value={calculation.overheads} />
-              <ReceiptRow label="Landed Cost" value={calculation.landedCost} isSub />
+              {gstEnabled && <ReceiptRow label={`GST (${gstRate}% of Base+BCD+SWG)`} value={calculation.gstAmount} />}
+              <ReceiptRow label="CHA & Admin Charges" value={calculation.chaAmt + calculation.adminAmt} />
+              <ReceiptRow label="Total Customs & Overheads" value={calculation.customsAndOverheads} isSub />
+            </div>
+
+            <div className="mb-6">
+              <h3 className="text-xs font-bold text-maroon-600/80 dark:text-maroon-500/80 uppercase tracking-wider mb-2 border-b border-maroon-100 dark:border-maroon-900/30 pb-1">3. Insurance</h3>
+              <ReceiptRow label={`Insurance (${insuranceRate}%)`} value={calculation.insuranceAmt} />
+              <div className="text-[11px] text-slate-400 dark:text-neutral-500 mt-1 pl-1 italic">*Applied to Base Costs + Customs & Overheads</div>
+              <ReceiptRow label="Accumulated Subtotal" value={calculation.subtotal} isSub />
             </div>
 
             <div className="mb-8 border-b border-slate-200 dark:border-neutral-800/80 pb-6">
-              <h3 className="text-xs font-bold text-maroon-600/80 dark:text-maroon-500/80 uppercase tracking-wider mb-2 border-b border-maroon-100 dark:border-maroon-900/30 pb-1">3. Capital Block Interest</h3>
-              <ReceiptRow label={`Consolidated Interest (${interestRate}% for ${interestDays} Days)`} value={calculation.consolidatedInterest} />
-              <div className="text-[11px] text-slate-400 dark:text-neutral-500 mt-1 pl-1 italic">
-                *Applied to (Landed Cost + Upfront GST)
-              </div>
+              <h3 className="text-xs font-bold text-maroon-600/80 dark:text-maroon-500/80 uppercase tracking-wider mb-2 border-b border-maroon-100 dark:border-maroon-900/30 pb-1">4. Capital Block Interest</h3>
+              <ReceiptRow label={`Interest (${interestRate}% for ${interestDays} Days)`} value={calculation.interestAmt} />
+              <ReceiptRow label="Landing Price" value={calculation.landingPrice} isSub />
             </div>
 
             <div className="space-y-4 mb-8">
-              <ReceiptRow label="Total Cost" value={calculation.totalCostWithInterest} isSub />
               <ReceiptRow label={`Applied Margin (${marginRate}%)`} value={calculation.marginAmount} />
               <ReceiptRow label="Selling Price / Unit" value={calculation.sellingPriceUnit} />
             </div>

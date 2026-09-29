@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { COUNTRIES } from '../data/countries';
 
-const BCD_RATE = 0.11; // Updated to 11%
-const SWG_RATE = 0.10; // 10% of BCD
+const BCD_RATE = 0.11;
+const SWG_RATE = 0.10;
 const DAYS_IN_YEAR = 365;
 
 interface Props {
@@ -14,7 +14,6 @@ export default function InternationalPricing({ onSwitch }: Props) {
   const [quantity, setQuantity] = useState<string>('1');
   const [freight, setFreight] = useState<string>('');
   
-  // New Inputs as requested
   const [chaCharges, setChaCharges] = useState<string>('');
   const [adminCharges, setAdminCharges] = useState<string>('');
   
@@ -40,14 +39,16 @@ export default function InternationalPricing({ onSwitch }: Props) {
   const selectedCountry = COUNTRIES.find(c => c.code === selectedCountryCode) || COUNTRIES[0];
   const filteredCountries = COUNTRIES.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()) || c.currency.toLowerCase().includes(searchQuery.toLowerCase()));
   
-  // Validation Check (CHA and Admin are optional so they are not in missingFields)
-  const isPristine = basePrice === '' && freight === '' && quantity === '1' && insuranceRate === '0.5' && marginRate === '25' && interestRate === '14' && interestDays === '45';
+  // Validation Check - Now strictly requires chaCharges and adminCharges
+  const isPristine = basePrice === '' && freight === '' && chaCharges === '' && adminCharges === '' && quantity === '1' && insuranceRate === '0.5' && marginRate === '25' && interestRate === '14' && interestDays === '45';
   
   const missingFields = useMemo(() => {
     const missing = [];
     if (basePrice === '') missing.push('Base Unit Price');
     if (quantity === '') missing.push('Quantity');
     if (freight === '') missing.push('Freight Charges');
+    if (chaCharges === '') missing.push('CHA Charges');
+    if (adminCharges === '') missing.push('Admin Charges');
     if (insuranceRate === '') missing.push('Insurance Rate');
     if (gstEnabled && gstRate === '') missing.push('GST Rate');
     if (marginRate === '') missing.push('Final Margin');
@@ -55,7 +56,7 @@ export default function InternationalPricing({ onSwitch }: Props) {
     if (interestDays === '') missing.push('Interest Days');
     if (rateError && manualExchangeRate === '') missing.push('Exchange Rate');
     return missing;
-  }, [basePrice, quantity, freight, insuranceRate, gstEnabled, gstRate, marginRate, interestRate, interestDays, rateError, manualExchangeRate]);
+  }, [basePrice, quantity, freight, chaCharges, adminCharges, insuranceRate, gstEnabled, gstRate, marginRate, interestRate, interestDays, rateError, manualExchangeRate]);
 
   useEffect(() => {
     const fetchRates = async () => {
@@ -95,29 +96,22 @@ export default function InternationalPricing({ onSwitch }: Props) {
     const numInterestRate = parseFloat(interestRate) || 0;
     const numInterestDays = parseFloat(interestDays) || 0;
 
-    // STEP 1: Base Costs
     const rmPrice = numBasePrice * activeExchangeRate * numQuantity;
     const baseCosts = rmPrice + numFreight;
 
-    // STEP 2: Customs & Overheads
     const bcd = baseCosts * BCD_RATE;
     const swg = bcd * SWG_RATE;
     const gstAmount = (baseCosts + bcd + swg) * (numGstRate / 100);
     const customsAndOverheads = bcd + swg + gstAmount + numCha + numAdmin;
 
-    // STEP 3: Insurance Cost (Calculated on RM + Freight + Customs&Overheads)
     const insuranceAmt = (baseCosts + customsAndOverheads) * (numInsuranceRate / 100);
 
-    // Accumulated Subtotal
     const subtotal = baseCosts + customsAndOverheads + insuranceAmt;
 
-    // STEP 4: Interest Part
     const interestAmt = subtotal * (numInterestRate / 100) * (numInterestDays / DAYS_IN_YEAR);
 
-    // STEP 5: Landing Price
     const landingPrice = subtotal + interestAmt;
 
-    // STEP 6: Final Price
     const marginAmount = landingPrice * (numMarginRate / 100);
     const finalPricing = landingPrice + marginAmount;
     const sellingPriceUnit = finalPricing / numQuantity;
@@ -218,17 +212,16 @@ export default function InternationalPricing({ onSwitch }: Props) {
 
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-neutral-300 mb-2">Freight Charges (INR)</label>
-            <input type="number" min="0" value={freight} onChange={(e) => setFreight(e.target.value)} placeholder="0.00" className="w-full px-4 py-3 bg-white dark:bg-black border border-slate-300 dark:border-neutral-800 rounded-lg focus:ring-2 focus:ring-maroon-600 outline-none dark:text-white" />
+            <input type="number" min="0" value={freight} onChange={(e) => setFreight(e.target.value)} placeholder="0.00 (Type 0 if none)" className="w-full px-4 py-3 bg-white dark:bg-black border border-slate-300 dark:border-neutral-800 rounded-lg focus:ring-2 focus:ring-maroon-600 outline-none dark:text-white" />
           </div>
 
-          {/* NEW: CHA and Admin Inputs */}
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-neutral-300 mb-2">CHA Charges (INR)</label>
-            <input type="number" min="0" value={chaCharges} onChange={(e) => setChaCharges(e.target.value)} placeholder="0.00 (Optional)" className="w-full px-4 py-3 bg-white dark:bg-black border border-slate-300 dark:border-neutral-800 rounded-lg focus:ring-2 focus:ring-maroon-600 outline-none dark:text-white" />
+            <input type="number" min="0" value={chaCharges} onChange={(e) => setChaCharges(e.target.value)} placeholder="0.00 (Type 0 if none)" className="w-full px-4 py-3 bg-white dark:bg-black border border-slate-300 dark:border-neutral-800 rounded-lg focus:ring-2 focus:ring-maroon-600 outline-none dark:text-white" />
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-neutral-300 mb-2">Admin Charges (INR)</label>
-            <input type="number" min="0" value={adminCharges} onChange={(e) => setAdminCharges(e.target.value)} placeholder="0.00 (Optional)" className="w-full px-4 py-3 bg-white dark:bg-black border border-slate-300 dark:border-neutral-800 rounded-lg focus:ring-2 focus:ring-maroon-600 outline-none dark:text-white" />
+            <input type="number" min="0" value={adminCharges} onChange={(e) => setAdminCharges(e.target.value)} placeholder="0.00 (Type 0 if none)" className="w-full px-4 py-3 bg-white dark:bg-black border border-slate-300 dark:border-neutral-800 rounded-lg focus:ring-2 focus:ring-maroon-600 outline-none dark:text-white" />
           </div>
 
           <div>
